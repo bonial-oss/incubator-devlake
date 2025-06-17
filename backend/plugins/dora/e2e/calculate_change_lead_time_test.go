@@ -33,6 +33,9 @@ func TestCalculateCLTimeDataFlow(t *testing.T) {
 	var plugin impl.Dora
 	dataflowTester := e2ehelper.NewDataFlowTester(t, "dora", plugin)
 
+	t.Setenv("ENABLE_BOT_FILTERING", "true")
+	t.Setenv("BOT_FILTERING_PATTERN", ".*Renovate|Dependabot.*")
+
 	taskData := &tasks.DoraTaskData{
 		Options: &tasks.DoraOptions{
 			ProjectName: "project1",

@@ -20,8 +20,10 @@ package tasks
 import (
 	"math"
 	"reflect"
+	"regexp"
 	"time"
 
+	"github.com/apache/incubator-devlake/core/config"
 	"github.com/apache/incubator-devlake/core/dal"
 	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/models/domainlayer/code"
@@ -52,6 +54,25 @@ func CalculateChangeLeadTime(taskCtx plugin.SubTaskContext) errors.Error {
 		return errors.Default.Wrap(err, "error deleting previous project_pr_metrics")
 	}
 
+	// Get env vars for bot filtering
+	cfg := config.GetConfig()
+	enableBotFiltering := cfg.GetBool("ENABLE_BOT_FILTERING")
+	botFilteringPattern := cfg.GetString("BOT_FILTERING_PATTERN")
+
+	// Precompile bot filtering regex if enabled and pattern is set
+	var botFilteringRegex *regexp.Regexp
+	if enableBotFiltering && botFilteringPattern == "" {
+		logger.Warn(nil, "ENABLE_BOT_FILTERING is true but BOT_FILTERING_PATTERN is empty; no PRs will be marked as bot-authored")
+	}
+	if enableBotFiltering && botFilteringPattern != "" {
+		var err error
+		botFilteringRegex, err = regexp.Compile(botFilteringPattern)
+		if err != nil {
+			logger.Warn(err, "Invalid bot filtering pattern: %s", botFilteringPattern)
+			botFilteringRegex = nil
+		}
+	}
+
 	// Batch fetch all required data upfront for better performance
 	startTime := time.Now()
 	logger.Info("Batch fetching data for project: %s", data.Options.ProjectName)
@@ -79,7 +100,7 @@ func CalculateChangeLeadTime(taskCtx plugin.SubTaskContext) errors.Error {
 
 	// Get pull requests by repo project_name
 	var clauses = []dal.Clause{
-		dal.Select("pr.id, pr.pull_request_key, pr.author_id, pr.merge_commit_sha, pr.created_date, pr.merged_date"),
+		dal.Select("pr.id, pr.pull_request_key, pr.author_id, pr.author_name, pr.merge_commit_sha, pr.created_date, pr.merged_date"),
 		dal.From("pull_requests pr"),
 		dal.Join(`LEFT JOIN project_mapping pm ON (pm.row_id = pr.base_repo_id)`),
 		dal.Where("pr.merged_date IS NOT NULL AND pm.project_name = ? AND pm.table = 'repos'", data.Options.ProjectName),
@@ -117,6 +138,7 @@ func CalculateChangeLeadTime(taskCtx plugin.SubTaskContext) errors.Error {
 				projectPrMetric.FirstCommitSha = firstCommit.CommitSha
 				projectPrMetric.FirstCommitAuthoredDate = &firstCommit.CommitAuthoredDate
 			}
+			projectPrMetric.IsAuthoredByBot = matchesBotFilter(botFilteringRegex, pr.AuthorName)
 
 			// Get the first review for the PR from batch-fetched map
 			firstReview := firstReviewsMap[pr.Id]
@@ -178,6 +200,13 @@ func computeTimeSpan(start, end *time.Time) *int64 {
 		return nil
 	}
 	return &minutes
+}
+
+func matchesBotFilter(botFilterRegex *regexp.Regexp, name string) bool {
+	if botFilterRegex == nil {
+		return false
+	}
+	return botFilterRegex.MatchString(name)
 }
 
 // deploymentCommitWithMergeSha is a helper struct to capture both the deployment commit

@@ -24,6 +24,7 @@ on:
       - "v*"
     branches:
       - main
+      - bonial/main
       - release-*
       - feat-*
       - bugfix-*

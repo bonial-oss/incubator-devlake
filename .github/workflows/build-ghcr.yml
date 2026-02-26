@@ -27,7 +27,7 @@ on:
       - release-*
       - feat-*
       - bugfix-*
-  pull_request: # TODO remove
+  workflow_dispatch:
 
 jobs:
   build-and-push-builder:

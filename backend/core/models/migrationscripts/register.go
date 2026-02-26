@@ -142,5 +142,6 @@ func All() []plugin.MigrationScript {
 		new(addPipelinePriority),
 		new(fixNullPriority),
 		new(addIsAuthoredByBotToProjectPrMetric),
+		new(addDoraPerformanceIndexes),
 	}
 }

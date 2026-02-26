@@ -61,6 +61,9 @@ func CalculateChangeLeadTime(taskCtx plugin.SubTaskContext) errors.Error {
 
 	// Precompile bot filtering regex if enabled and pattern is set
 	var botFilteringRegex *regexp.Regexp
+	if enableBotFiltering && botFilteringPattern == "" {
+		logger.Warn(nil, "ENABLE_BOT_FILTERING is true but BOT_FILTERING_PATTERN is empty; no PRs will be marked as bot-authored")
+	}
 	if enableBotFiltering && botFilteringPattern != "" {
 		var err error
 		botFilteringRegex, err = regexp.Compile(botFilteringPattern)

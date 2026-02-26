@@ -23,7 +23,7 @@ import (
 	"github.com/apache/incubator-devlake/core/plugin"
 )
 
-var _ plugin.MigrationScript = (*addDateFieldsToProjectPrMetric)(nil)
+var _ plugin.MigrationScript = (*addIsAuthoredByBotToProjectPrMetric)(nil)
 
 type projectPrMetric20250617 struct {
 	IsAuthoredByBot bool

@@ -62,3 +62,37 @@ func TestCalculateCLTimeDataFlow(t *testing.T) {
 		IgnoreTypes: []interface{}{common.NoPKModel{}},
 	})
 }
+
+func TestCalculateCLTimeDataFlowBotFilteringDisabled(t *testing.T) {
+	var plugin impl.Dora
+	dataflowTester := e2ehelper.NewDataFlowTester(t, "dora", plugin)
+
+	t.Setenv("ENABLE_BOT_FILTERING", "false")
+	t.Setenv("BOT_FILTERING_PATTERN", ".*Renovate|Dependabot.*")
+
+	taskData := &tasks.DoraTaskData{
+		Options: &tasks.DoraOptions{
+			ProjectName: "project1",
+		},
+	}
+
+	dataflowTester.FlushTabler(&code.PullRequest{})
+
+	// import raw data table
+	dataflowTester.ImportCsvIntoTabler("./change_lead_time/project_mapping.csv", &crossdomain.ProjectMapping{})
+	dataflowTester.ImportCsvIntoTabler("./change_lead_time/repos.csv", &code.Repo{})
+	dataflowTester.ImportCsvIntoTabler("./change_lead_time/cicd_scopes.csv", &devops.CicdScope{})
+	dataflowTester.ImportCsvIntoTabler("./change_lead_time/pull_requests.csv", &code.PullRequest{})
+	dataflowTester.ImportCsvIntoTabler("./change_lead_time/cicd_deployment_commits.csv", &devops.CicdDeploymentCommit{})
+	dataflowTester.ImportNullableCsvIntoTabler("./change_lead_time/commits_diffs.csv", &code.CommitsDiff{})
+	dataflowTester.ImportCsvIntoTabler("./change_lead_time/pull_request_comments.csv", &code.PullRequestComment{})
+	dataflowTester.ImportCsvIntoTabler("./change_lead_time/pull_request_commits.csv", &code.PullRequestCommit{})
+
+	// verify converter - all PRs should have is_authored_by_bot=0 when filtering is disabled
+	dataflowTester.FlushTabler(&crossdomain.ProjectPrMetric{})
+	dataflowTester.Subtask(tasks.CalculateChangeLeadTimeMeta, taskData)
+	dataflowTester.VerifyTableWithOptions(&crossdomain.ProjectPrMetric{}, e2ehelper.TableOptions{
+		CSVRelPath:  "./change_lead_time/project_pr_metrics_no_bot_filter.csv",
+		IgnoreTypes: []interface{}{common.NoPKModel{}},
+	})
+}

@@ -18,13 +18,37 @@ limitations under the License.
 package migrationscripts
 
 import (
+	"time"
+
+	"github.com/apache/incubator-devlake/core/context"
+	"github.com/apache/incubator-devlake/core/errors"
 	"github.com/apache/incubator-devlake/core/plugin"
+	"github.com/apache/incubator-devlake/helpers/migrationhelper"
 )
 
-// All return all the migration scripts
-func All() []plugin.MigrationScript {
-	return []plugin.MigrationScript{
-		new(flushRawData),
-		new(addFinishedDateToGithubDeployment),
-	}
+var _ plugin.MigrationScript = (*addFinishedDateToGithubDeployment)(nil)
+
+type addFinishedDateToGithubDeployment struct{}
+
+type deployment20260215000001 struct {
+	FinishedDate *time.Time
+}
+
+func (deployment20260215000001) TableName() string {
+	return "_tool_github_deployments"
+}
+
+func (*addFinishedDateToGithubDeployment) Up(basicRes context.BasicRes) errors.Error {
+	return migrationhelper.AutoMigrateTables(
+		basicRes,
+		&deployment20260215000001{},
+	)
+}
+
+func (*addFinishedDateToGithubDeployment) Version() uint64 {
+	return 20260215000001
+}
+
+func (*addFinishedDateToGithubDeployment) Name() string {
+	return "add finished_date to github_deployments"
 }

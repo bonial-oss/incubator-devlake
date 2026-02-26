@@ -1068,7 +1068,7 @@
           "metricColumn": "none",
           "queryType": "randomWalk",
           "rawQuery": true,
-          "rawSql": "SELECT\n\tpm.project_name,pr._raw_data_table,count(*) as total_number_of_PRs\nFROM\n\tpull_requests pr \n-- \tjoin project_pr_metrics prm on prm.id = pr.id\n\tjoin project_mapping pm on pr.base_repo_id = pm.row_id AND pm.`table`='repos'\nWHERE\n  pm.project_name in ($project)\n-- \tand pr.merged_date is not null\n-- \tand prm.pr_cycle_time is not null\n\tand $__timeFilter(pr.created_date)\nGROUP BY 1,2\n",
+          "rawSql": "SELECT\n\tpm.project_name,pr._raw_data_table,count(*) as total_number_of_PRs\nFROM\n\tpull_requests pr \n-- \tjoin project_pr_metrics prm on prm.id = pr.id\n\tjoin project_mapping pm on pr.base_repo_id = pm.row_id AND pm.`table`='repos'\nWHERE\n  pm.project_name in ($project)\n-- \tand pr.merged_date is not null\n-- \tand prm.pr_cycle_time is not null\n\tand $__timeFilter(pr.created_date)\n\tand (prm.is_authored_by_bot is null or prm.is_authored_by_bot in (${author_type}))\nGROUP BY 1,2\n",
           "refId": "A",
           "select": [
             [
@@ -1189,7 +1189,7 @@
           "metricColumn": "none",
           "queryType": "randomWalk",
           "rawQuery": true,
-          "rawSql": "-- Metric 2: median lead time for changes\nwith _pr_stats as (\n-- get the cycle time of PRs deployed by the deployments finished in the selected period\n\tSELECT\n\t\tdistinct pr.id,\n\t\tppm.pr_cycle_time\n\tFROM\n\t\tpull_requests pr \n\t\tjoin project_pr_metrics ppm on ppm.id = pr.id\n\t\tjoin project_mapping pm on pr.base_repo_id = pm.row_id and pm.`table` = 'repos'\n\t\tjoin cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n\tWHERE\n\t  pm.project_name in (${project}) \n\t\tand pr.merged_date is not null\n\t\tand ppm.pr_cycle_time is not null\n\t\tand $__timeFilter(cdc.finished_date)\n),\n\n_median_change_lead_time_ranks as(\n\tSELECT *, percent_rank() over(order by pr_cycle_time) as ranks\n\tFROM _pr_stats\n),\n\n_median_change_lead_time as(\n-- use median PR cycle time as the median change lead time\n\tSELECT max(pr_cycle_time) as median_change_lead_time\n\tFROM _median_change_lead_time_ranks\n\tWHERE ranks <= 0.5\n)\n\nSELECT \n  CASE\n    WHEN ('$dora_report') = '2023' THEN\n\t\t\tCASE\n\t\t\t\tWHEN median_change_lead_time < 24 * 60 THEN \"Less than one day(elite)\"\n\t\t\t\tWHEN median_change_lead_time < 7 * 24 * 60 THEN \"Between one day and one week(high)\"\n\t\t\t\tWHEN median_change_lead_time < 30 * 24 * 60 THEN \"Between one week and one month(medium)\"\n\t\t\t\tWHEN median_change_lead_time >= 30 * 24 * 60 THEN \"More than one month(low)\"\n\t\t\t\tELSE \"N/A. Please check if you have collected deployments/pull_requests.\"\n\t\t\t\tEND\n    WHEN ('$dora_report') = '2021' THEN\n\t\t  CASE\n\t\t\t\tWHEN median_change_lead_time < 60 THEN \"Less than one hour(elite)\"\n\t\t\t\tWHEN median_change_lead_time < 7 * 24 * 60 THEN \"Less than one week(high)\"\n\t\t\t\tWHEN median_change_lead_time < 180 * 24 * 60 THEN \"Between one week and six months(medium)\"\n\t\t\t\tWHEN median_change_lead_time >= 180 * 24 * 60 THEN \"More than six months(low)\"\n\t\t\t\tELSE \"N/A. Please check if you have collected deployments/pull_requests.\"\n\t\t\t\tEND\n\t\tELSE 'Invalid dora report'\n\tEND AS median_change_lead_time\nFROM _median_change_lead_time",
+          "rawSql": "-- Metric 2: median lead time for changes\nwith _pr_stats as (\n-- get the cycle time of PRs deployed by the deployments finished in the selected period\n\tSELECT\n\t\tdistinct pr.id,\n\t\tppm.pr_cycle_time\n\tFROM\n\t\tpull_requests pr \n\t\tjoin project_pr_metrics ppm on ppm.id = pr.id\n\t\tjoin project_mapping pm on pr.base_repo_id = pm.row_id and pm.`table` = 'repos'\n\t\tjoin cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n\tWHERE\n\t  pm.project_name in (${project}) \n\t\tand pr.merged_date is not null\n\t\tand ppm.pr_cycle_time is not null\n\t\tand $__timeFilter(cdc.finished_date)\n\tand (ppm.is_authored_by_bot is null or ppm.is_authored_by_bot in (${author_type}))\n),\n\n_median_change_lead_time_ranks as(\n\tSELECT *, percent_rank() over(order by pr_cycle_time) as ranks\n\tFROM _pr_stats\n),\n\n_median_change_lead_time as(\n-- use median PR cycle time as the median change lead time\n\tSELECT max(pr_cycle_time) as median_change_lead_time\n\tFROM _median_change_lead_time_ranks\n\tWHERE ranks <= 0.5\n)\n\nSELECT \n  CASE\n    WHEN ('$dora_report') = '2023' THEN\n\t\t\tCASE\n\t\t\t\tWHEN median_change_lead_time < 24 * 60 THEN \"Less than one day(elite)\"\n\t\t\t\tWHEN median_change_lead_time < 7 * 24 * 60 THEN \"Between one day and one week(high)\"\n\t\t\t\tWHEN median_change_lead_time < 30 * 24 * 60 THEN \"Between one week and one month(medium)\"\n\t\t\t\tWHEN median_change_lead_time >= 30 * 24 * 60 THEN \"More than one month(low)\"\n\t\t\t\tELSE \"N/A. Please check if you have collected deployments/pull_requests.\"\n\t\t\t\tEND\n    WHEN ('$dora_report') = '2021' THEN\n\t\t  CASE\n\t\t\t\tWHEN median_change_lead_time < 60 THEN \"Less than one hour(elite)\"\n\t\t\t\tWHEN median_change_lead_time < 7 * 24 * 60 THEN \"Less than one week(high)\"\n\t\t\t\tWHEN median_change_lead_time < 180 * 24 * 60 THEN \"Between one week and six months(medium)\"\n\t\t\t\tWHEN median_change_lead_time >= 180 * 24 * 60 THEN \"More than six months(low)\"\n\t\t\t\tELSE \"N/A. Please check if you have collected deployments/pull_requests.\"\n\t\t\t\tEND\n\t\tELSE 'Invalid dora report'\n\tEND AS median_change_lead_time\nFROM _median_change_lead_time",
           "refId": "A",
           "select": [
             [
@@ -1466,7 +1466,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "-- Metric 2: median change lead time per month\nwith _pr_stats as (\n-- get the cycle time of PRs deployed by the deployments finished each month\n\tSELECT\n\t\tdistinct pr.id,\n\t\tdate_format(cdc.finished_date,'%y/%m') as month,\n\t\tppm.pr_cycle_time\n\tFROM\n\t\tpull_requests pr\n\t\tjoin project_pr_metrics ppm on ppm.id = pr.id\n\t\tjoin project_mapping pm on pr.base_repo_id = pm.row_id and pm.`table` = 'repos'\n\t\tjoin cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n\tWHERE\n\t\tpm.project_name in (${project}) \n\t\tand pr.merged_date is not null\n\t\tand ppm.pr_cycle_time is not null\n\t\tand $__timeFilter(cdc.finished_date)\n),\n\n_find_median_clt_each_month_ranks as(\n\tSELECT *, percent_rank() over(PARTITION BY month order by pr_cycle_time) as ranks\n\tFROM _pr_stats\n),\n\n_clt as(\n\tSELECT month, max(pr_cycle_time) as median_change_lead_time\n\tFROM _find_median_clt_each_month_ranks\n\tWHERE ranks <= 0.5\n\tgroup by month\n)\n\nSELECT \n\tcm.month,\n\tcase \n\t\twhen _clt.median_change_lead_time is null then 0 \n\t\telse _clt.median_change_lead_time/60 end as 'Median Change Lead Time In Hour'\nFROM \n\tcalendar_months cm\n\tLEFT JOIN _clt on cm.month = _clt.month\n  WHERE month_timestamp between DATE(DATE_FORMAT($__timeFrom(), '%Y-%m-01')) AND DATE(DATE_FORMAT($__timeTo(), '%Y-%m-01'))",
+          "rawSql": "-- Metric 2: median change lead time per month\nwith _pr_stats as (\n-- get the cycle time of PRs deployed by the deployments finished each month\n\tSELECT\n\t\tdistinct pr.id,\n\t\tdate_format(cdc.finished_date,'%y/%m') as month,\n\t\tppm.pr_cycle_time\n\tFROM\n\t\tpull_requests pr\n\t\tjoin project_pr_metrics ppm on ppm.id = pr.id\n\t\tjoin project_mapping pm on pr.base_repo_id = pm.row_id and pm.`table` = 'repos'\n\t\tjoin cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n\tWHERE\n\t\tpm.project_name in (${project}) \n\t\tand pr.merged_date is not null\n\t\tand ppm.pr_cycle_time is not null\n\t\tand $__timeFilter(cdc.finished_date)\n\tand (ppm.is_authored_by_bot is null or ppm.is_authored_by_bot in (${author_type}))\n),\n\n_find_median_clt_each_month_ranks as(\n\tSELECT *, percent_rank() over(PARTITION BY month order by pr_cycle_time) as ranks\n\tFROM _pr_stats\n),\n\n_clt as(\n\tSELECT month, max(pr_cycle_time) as median_change_lead_time\n\tFROM _find_median_clt_each_month_ranks\n\tWHERE ranks <= 0.5\n\tgroup by month\n)\n\nSELECT \n\tcm.month,\n\tcase \n\t\twhen _clt.median_change_lead_time is null then 0 \n\t\telse _clt.median_change_lead_time/60 end as 'Median Change Lead Time In Hour'\nFROM \n\tcalendar_months cm\n\tLEFT JOIN _clt on cm.month = _clt.month\n  WHERE month_timestamp between DATE(DATE_FORMAT($__timeFrom(), '%Y-%m-01')) AND DATE(DATE_FORMAT($__timeTo(), '%Y-%m-01'))",
           "refId": "A",
           "select": [
             [
@@ -1604,7 +1604,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select \n    count(distinct id) as 'No. of PRs in table.project_pr_metrics'\nfrom \n    project_pr_metrics \nwhere \n    project_name in ($project)",
+          "rawSql": "select \n    count(distinct id) as 'No. of PRs in table.project_pr_metrics'\nfrom \n    project_pr_metrics \nwhere \n    project_name in ($project)\n\tand (project_pr_metrics.is_authored_by_bot is null or project_pr_metrics.is_authored_by_bot in (${author_type}))",
           "refId": "B",
           "select": [
             [
@@ -1967,7 +1967,7 @@
           "metricColumn": "none",
           "queryType": "randomWalk",
           "rawQuery": true,
-          "rawSql": "-- This query can be used to test if the column `deployment_commit_id` is associated with the correct PR\nWITH pr_merge_commits AS (\n\tSELECT\n\t\tppm.id AS pr_id,\n\t\tppm.deployment_commit_id AS id_1,\n\t\tpr.merge_commit_sha,\n\t\tppm.project_name \n\tFROM\n\t\tproject_pr_metrics ppm\n\t\tLEFT JOIN pull_requests pr ON ppm.id = pr.id \n\tWHERE\n\t\tppm.project_name in ($project) \n\t\tAND ppm.id = '$pr_id'\n\t),\n\t_deployment_commits AS (\n\tSELECT DISTINCT\n\t\tcdc1.id AS id_2,\n\t\tcdc1.prev_success_deployment_commit_id,\n\t\tcdc1.commit_sha AS new_commit_sha,\n\t\tcdc2.commit_sha AS old_commit_sha,\n\t\tcdc1.finished_date,\n\t\tcd.commit_sha AS deployed_commits \n\tFROM\n\t\tcicd_deployment_commits cdc1\n\t\tLEFT JOIN cicd_deployment_commits cdc2 ON cdc1.prev_success_deployment_commit_id = cdc2.id\n\t\tJOIN commits_diffs cd ON cdc1.commit_sha = cd.new_commit_sha \n\t\tAND COALESCE ( cdc2.commit_sha, '' ) = cd.old_commit_sha\n\t\tJOIN project_mapping pm ON cdc1.cicd_scope_id = pm.row_id \n\tWHERE\n\t\tcdc1.result = 'SUCCESS' \n\t\tAND cdc1.environment = 'PRODUCTION' \n\t\tAND pm.project_name in ($project)\n\t),\n\t_find_deployment_commit_id_from_pr AS (\n\tSELECT\n\t\tpmc.pr_id,\n\t\tpmc.id_1,\n\t\tpmc.merge_commit_sha,\n\t\tpmc.project_name,\n\t\tdc.id_2,\n\t\tdc.prev_success_deployment_commit_id,\n\t\tdc.deployed_commits,\n\t\trank() over ( PARTITION BY pr_id ORDER BY dc.finished_date ) AS deployment_rank \n\tFROM\n\t\tpr_merge_commits pmc\n\t\tLEFT JOIN _deployment_commits dc ON pmc.merge_commit_sha = dc.deployed_commits \n\t) SELECT\n\tpr_id,\n\t-- If `id_1` equals `id_2`, then pass\n\tid_1 as deployment_commit_id,\n-- \tid_2,\n\tcase when id_1 = COALESCE(id_2,'') then 'YES' else 'NO' end as if_the_mapping_logic_is_correct\nFROM\n\t_find_deployment_commit_id_from_pr \nWHERE\n\tdeployment_rank = 1",
+          "rawSql": "-- This query can be used to test if the column `deployment_commit_id` is associated with the correct PR\nWITH pr_merge_commits AS (\n\tSELECT\n\t\tppm.id AS pr_id,\n\t\tppm.deployment_commit_id AS id_1,\n\t\tpr.merge_commit_sha,\n\t\tppm.project_name \n\tFROM\n\t\tproject_pr_metrics ppm\n\t\tLEFT JOIN pull_requests pr ON ppm.id = pr.id \n\tWHERE\n\t\tppm.project_name in ($project) \n\t\tAND ppm.id = '$pr_id'\n\tand (ppm.is_authored_by_bot is null or ppm.is_authored_by_bot in (${author_type}))\n\t),\n\t_deployment_commits AS (\n\tSELECT DISTINCT\n\t\tcdc1.id AS id_2,\n\t\tcdc1.prev_success_deployment_commit_id,\n\t\tcdc1.commit_sha AS new_commit_sha,\n\t\tcdc2.commit_sha AS old_commit_sha,\n\t\tcdc1.finished_date,\n\t\tcd.commit_sha AS deployed_commits \n\tFROM\n\t\tcicd_deployment_commits cdc1\n\t\tLEFT JOIN cicd_deployment_commits cdc2 ON cdc1.prev_success_deployment_commit_id = cdc2.id\n\t\tJOIN commits_diffs cd ON cdc1.commit_sha = cd.new_commit_sha \n\t\tAND COALESCE ( cdc2.commit_sha, '' ) = cd.old_commit_sha\n\t\tJOIN project_mapping pm ON cdc1.cicd_scope_id = pm.row_id \n\tWHERE\n\t\tcdc1.result = 'SUCCESS' \n\t\tAND cdc1.environment = 'PRODUCTION' \n\t\tAND pm.project_name in ($project)\n\t),\n\t_find_deployment_commit_id_from_pr AS (\n\tSELECT\n\t\tpmc.pr_id,\n\t\tpmc.id_1,\n\t\tpmc.merge_commit_sha,\n\t\tpmc.project_name,\n\t\tdc.id_2,\n\t\tdc.prev_success_deployment_commit_id,\n\t\tdc.deployed_commits,\n\t\trank() over ( PARTITION BY pr_id ORDER BY dc.finished_date ) AS deployment_rank \n\tFROM\n\t\tpr_merge_commits pmc\n\t\tLEFT JOIN _deployment_commits dc ON pmc.merge_commit_sha = dc.deployed_commits \n\t) SELECT\n\tpr_id,\n\t-- If `id_1` equals `id_2`, then pass\n\tid_1 as deployment_commit_id,\n-- \tid_2,\n\tcase when id_1 = COALESCE(id_2,'') then 'YES' else 'NO' end as if_the_mapping_logic_is_correct\nFROM\n\t_find_deployment_commit_id_from_pr \nWHERE\n\tdeployment_rank = 1",
           "refId": "A",
           "select": [
             [
@@ -2079,7 +2079,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select \n    id, \n    -- first_commit_sha,\n    pr_coding_time as 'PR coding time from project_pr_metrics'\nfrom project_pr_metrics\nwhere id = '$pr_id'",
+          "rawSql": "select \n    id, \n    -- first_commit_sha,\n    pr_coding_time as 'PR coding time from project_pr_metrics'\nfrom project_pr_metrics\nwhere id = '$pr_id'\n\tand (project_pr_metrics.is_authored_by_bot is null or project_pr_metrics.is_authored_by_bot in (${author_type}))",
           "refId": "B",
           "select": [
             [
@@ -2187,7 +2187,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select \n    id, \n    -- first_review_id,\n    pr_pickup_time as 'PR pickup time from project_pr_metrics'\nfrom project_pr_metrics\nwhere \n    id = '$pr_id'\n    and project_name in ($project)\n",
+          "rawSql": "select \n    id, \n    -- first_review_id,\n    pr_pickup_time as 'PR pickup time from project_pr_metrics'\nfrom project_pr_metrics\nwhere \n    id = '$pr_id'\n    and project_name in ($project)\n\tand (project_pr_metrics.is_authored_by_bot is null or project_pr_metrics.is_authored_by_bot in (${author_type}))\n",
           "refId": "B",
           "select": [
             [
@@ -2295,7 +2295,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select \n    id, \n    -- first_review_id,\n    pr_review_time as 'PR review time from project_pr_metrics'\nfrom project_pr_metrics\nwhere \n    id = '$pr_id'\n    and project_name in ($project)\n",
+          "rawSql": "select \n    id, \n    -- first_review_id,\n    pr_review_time as 'PR review time from project_pr_metrics'\nfrom project_pr_metrics\nwhere \n    id = '$pr_id'\n    and project_name in ($project)\n\tand (project_pr_metrics.is_authored_by_bot is null or project_pr_metrics.is_authored_by_bot in (${author_type}))\n",
           "refId": "B",
           "select": [
             [
@@ -2373,7 +2373,7 @@
           "metricColumn": "none",
           "queryType": "randomWalk",
           "rawQuery": true,
-          "rawSql": "select  \n    ppm.id as pr_id,\n    ppm.deployment_commit_id,\n    CEILING(TIMESTAMPDIFF(second,pr.merged_date,cdc.finished_date)/60) as 'PR deploy time from cicd_deployment_commits'\nfrom \n    project_pr_metrics ppm\n    left join cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n    left join pull_requests pr on ppm.id = pr.id\nwhere \n   project_name in ($project)\n   and cdc.result = 'SUCCESS'\n   and cdc.`environment` = 'PRODUCTION'\n   and ppm.id = '$pr_id'",
+          "rawSql": "select  \n    ppm.id as pr_id,\n    ppm.deployment_commit_id,\n    CEILING(TIMESTAMPDIFF(second,pr.merged_date,cdc.finished_date)/60) as 'PR deploy time from cicd_deployment_commits'\nfrom \n    project_pr_metrics ppm\n    left join cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n    left join pull_requests pr on ppm.id = pr.id\nwhere \n   project_name in ($project)\n   and cdc.result = 'SUCCESS'\n   and cdc.`environment` = 'PRODUCTION'\n   and ppm.id = '$pr_id'\n\tand (ppm.is_authored_by_bot is null or ppm.is_authored_by_bot in (${author_type}))",
           "refId": "A",
           "select": [
             [
@@ -2403,7 +2403,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select \n    id, \n    pr_deploy_time as 'PR deploy time from project_pr_metrics'\nfrom project_pr_metrics\nwhere \n    id = '$pr_id'\n    and project_name in ($project)\n",
+          "rawSql": "select \n    id, \n    pr_deploy_time as 'PR deploy time from project_pr_metrics'\nfrom project_pr_metrics\nwhere \n    id = '$pr_id'\n    and project_name in ($project)\n\tand (project_pr_metrics.is_authored_by_bot is null or project_pr_metrics.is_authored_by_bot in (${author_type}))\n",
           "refId": "B",
           "select": [
             [
@@ -2481,7 +2481,7 @@
           "metricColumn": "none",
           "queryType": "randomWalk",
           "rawQuery": true,
-          "rawSql": "select \n     ppm.id,\n    (pr_coding_time + CEILING(TIMESTAMPDIFF(second,pr.created_date,pr.merged_date)/60) + pr_deploy_time) as 'PR cycle time from lower-level metrics',\n    ppm.`pr_cycle_time` as 'PR cycle time from project_pr_metrics'\nfrom project_pr_metrics ppm\nleft join pull_requests pr on ppm.id = pr.id\nwhere \n    project_name in ($project)\n    and pr.id = '$pr_id'",
+          "rawSql": "select \n     ppm.id,\n    (pr_coding_time + CEILING(TIMESTAMPDIFF(second,pr.created_date,pr.merged_date)/60) + pr_deploy_time) as 'PR cycle time from lower-level metrics',\n    ppm.`pr_cycle_time` as 'PR cycle time from project_pr_metrics'\nfrom project_pr_metrics ppm\nleft join pull_requests pr on ppm.id = pr.id\nwhere \n    project_name in ($project)\n    and pr.id = '$pr_id'\n\tand (ppm.is_authored_by_bot is null or ppm.is_authored_by_bot in (${author_type}))",
           "refId": "A",
           "select": [
             [
@@ -2617,7 +2617,7 @@
           "hide": false,
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "with _pr_stats as (\n-- get the cycle time of PRs deployed by the deployments finished each month\n\tSELECT\n\t\tdistinct\n\t\tdate_format(cdc.finished_date,'%y/%m') as month,\n\t\tpr.id,\n\t\tppm.pr_cycle_time\n\tFROM\n\t\tpull_requests pr\n\t\tjoin project_pr_metrics ppm on ppm.id = pr.id\n\t\tjoin project_mapping pm on pr.base_repo_id = pm.row_id and pm.`table` = 'repos'\n\t\tjoin cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n\tWHERE\n\t\tpm.project_name in ($project) \n\t\tand pr.merged_date is not null\n\t\tand ppm.pr_cycle_time is not null\n\t\tand $__timeFilter(cdc.finished_date)\n),\n\n_find_median_clt_each_month_ranks as(\n\tSELECT *, percent_rank() over(PARTITION BY month order by pr_cycle_time) as ranks\n\tFROM _pr_stats\n)\n\nSELECT \n  month, \n  id, \n  pr_cycle_time as change_lead_time_in_minutes, \n  pr_cycle_time/60 as change_lead_time_in_hours, \n  ranks \nFROM _find_median_clt_each_month_ranks\n",
+          "rawSql": "with _pr_stats as (\n-- get the cycle time of PRs deployed by the deployments finished each month\n\tSELECT\n\t\tdistinct\n\t\tdate_format(cdc.finished_date,'%y/%m') as month,\n\t\tpr.id,\n\t\tppm.pr_cycle_time\n\tFROM\n\t\tpull_requests pr\n\t\tjoin project_pr_metrics ppm on ppm.id = pr.id\n\t\tjoin project_mapping pm on pr.base_repo_id = pm.row_id and pm.`table` = 'repos'\n\t\tjoin cicd_deployment_commits cdc on ppm.deployment_commit_id = cdc.id\n\tWHERE\n\t\tpm.project_name in ($project) \n\t\tand pr.merged_date is not null\n\t\tand ppm.pr_cycle_time is not null\n\t\tand $__timeFilter(cdc.finished_date)\n\tand (ppm.is_authored_by_bot is null or ppm.is_authored_by_bot in (${author_type}))\n),\n\n_find_median_clt_each_month_ranks as(\n\tSELECT *, percent_rank() over(PARTITION BY month order by pr_cycle_time) as ranks\n\tFROM _pr_stats\n)\n\nSELECT \n  month, \n  id, \n  pr_cycle_time as change_lead_time_in_minutes, \n  pr_cycle_time/60 as change_lead_time_in_hours, \n  ranks \nFROM _find_median_clt_each_month_ranks\n",
           "refId": "A",
           "select": [
             [
@@ -3846,6 +3846,31 @@
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
+      },
+      {
+        "allValue": "",
+        "current": {
+          "text": "$__all",
+          "value": "$__all"
+        },
+        "description": "Filter Metrics by author type: Human or Bot.",
+        "includeAll": true,
+        "label": "Author Type",
+        "name": "author_type",
+        "options": [
+          {
+            "selected": false,
+            "text": "Human",
+            "value": "0"
+          },
+          {
+            "selected": false,
+            "text": "Bot",
+            "value": "1"
+          }
+        ],
+        "query": "Human : 0, Bot : 1",
+        "type": "custom"
       }
     ]
   },

@@ -40,6 +40,8 @@ type ProjectPrMetric struct {
 	PrCreatedDate           *time.Time
 	PrMergedDate            *time.Time
 	PrDeployedDate          *time.Time
+
+	IsAuthoredByBot bool
 }
 
 func (ProjectPrMetric) TableName() string {

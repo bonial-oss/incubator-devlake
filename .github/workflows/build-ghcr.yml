@@ -16,8 +16,6 @@
 #
 
 name: Build-Images-Push-GHCR
-env:
-  GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 on:
   push:
     tags:
@@ -28,13 +26,15 @@ on:
       - release-*
   workflow_dispatch:
 
+permissions:
+  packages: write
+  contents: read
+  actions: write
+
 jobs:
   build-and-push-builder:
     name: Build and Push devlake builder
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
-      contents: read
     steps:
       - uses: actions/checkout@v3
       - name: Set up QEMU

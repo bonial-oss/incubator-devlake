@@ -175,6 +175,7 @@ jobs:
         id: get_push_tags
         run: |
           image_name=ghcr.io/${{ env.REPO_OWNER_LOWER }}/devlake
+          ref_name=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
           if [[ ${{ github.event_name }} == "pull_request" ]]; then
               pr_number=${{ github.event.pull_request.number }}
               echo "TAGS=${image_name}:pr-${pr_number}" >> $GITHUB_OUTPUT
@@ -183,7 +184,7 @@ jobs:
           elif printf ${{ github.ref }} |grep -Pq '^refs/tags/'; then
               echo "TAGS=${image_name}:${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
-              echo "TAGS=${image_name}:${{ github.ref_name }}_${{ needs.get-timestamp.outputs.timestamp }}_${{ steps.get_short_sha.outputs.SHORT_SHA }}" >> $GITHUB_OUTPUT
+              echo "TAGS=${image_name}:${ref_name}_${{ needs.get-timestamp.outputs.timestamp }}_${{ steps.get_short_sha.outputs.SHORT_SHA }}" >> $GITHUB_OUTPUT
           fi
       - name: Build and push lake image
         uses: docker/build-push-action@v3
@@ -253,6 +254,7 @@ jobs:
         id: get_push_tags
         run: |
           image_name=ghcr.io/${{ env.REPO_OWNER_LOWER }}/${{ matrix.build.image }}
+          ref_name=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
           if [[ ${{ github.event_name }} == "pull_request" ]]; then
               pr_number=${{ github.event.pull_request.number }}
               echo "TAGS=${image_name}:pr-${pr_number}" >> $GITHUB_OUTPUT
@@ -261,7 +263,7 @@ jobs:
           elif printf ${{ github.ref }} |grep -Pq '^refs/tags/'; then
               echo "TAGS=${image_name}:${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
-              echo "TAGS=${image_name}:${{ github.ref_name }}_${{ needs.get-timestamp.outputs.timestamp }}_${{ steps.get_short_sha.outputs.SHORT_SHA }}" >> $GITHUB_OUTPUT
+              echo "TAGS=${image_name}:${ref_name}_${{ needs.get-timestamp.outputs.timestamp }}_${{ steps.get_short_sha.outputs.SHORT_SHA }}" >> $GITHUB_OUTPUT
           fi
       - name: Build and push ${{ matrix.build.name }} image
         uses: docker/build-push-action@v3

@@ -20,13 +20,7 @@ env:
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USER }}
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 on:
-  push:
-    tags:
-      - "v*"
-    branches:
-      - main
-      - release-*
-      - fix-clear-docker-images-before-build
+  workflow_dispatch:
 
 jobs:
   build-and-push-builder:
